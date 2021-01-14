@@ -4,8 +4,10 @@ from sklearn import svm
 from sklearn.linear_model import LogisticRegression
 import csv
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_score
 from subprocess import Popen
 from sklearn.neural_network import MLPClassifier
+import numpy as np
 import os
 
 wine_data = pd.read_csv('winequality-red.csv')
@@ -25,6 +27,17 @@ X = wine_data[[
 
 y = wine_data[['quality']]
 
+# Map quality to 'good' and 'poor' to get a better quality
+y_mean = np.mean(y)
+y_third_quartile = np.percentile(y, 75)
+i = 0
+for quality_in_int in y.values.ravel():
+    if quality_in_int >= int(y_third_quartile):
+        y.values[i][0] = 1  # 1 means Good
+    else:
+        y.values[i][0] = 0  # 0 means Bad
+    i += 1
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
 # Support Vector Machine:
@@ -33,6 +46,8 @@ svm_model.fit(X_train, y_train.values.ravel())
 
 svm_predictions = svm_model.predict(X_test)
 svm_accuracy = accuracy_score(y_test, svm_predictions)
+# svm_precision_score = precision_score(y_test, svm_predictions, average='micro')
+# print(svm_precision_score)
 
 # Logistic Regression:
 log_reg_model = LogisticRegression(solver='liblinear')
@@ -48,6 +63,34 @@ nn.fit(X_train, y_train.values.ravel())
 nn_predictions = nn.predict(X_test)
 nn_accuracy = accuracy_score(y_test, nn_predictions)
 
+# making correctness labels:
+svm_correctness = []
+log_reg_correctness = []
+nn_correctness = []
+j = 0
+for prediction in svm_predictions:
+    if prediction != y_test.values[j][0]:
+        svm_correctness.append('SVM Wrong')
+    else:
+        svm_correctness.append('SVM Correct')
+    j += 1
+
+z = 0
+for prediction in log_reg_predictions:
+    if prediction != y_test.values[z][0]:
+        log_reg_correctness.append('LogReg Wrong')
+    else:
+        log_reg_correctness.append('LogReg Correct')
+    z += 1
+
+t = 0
+for prediction in nn_predictions:
+    if prediction != y_test.values[t][0]:
+        nn_correctness.append('NN Wrong')
+    else:
+        nn_correctness.append('NN Correct')
+    t += 1
+
 print('---------------------------------------')
 print("SVM Accuracy: ", svm_accuracy)
 print("Logistic Regression Accuracy: ", log_reg_accuracy)
@@ -62,9 +105,12 @@ else:
 
 with open('wine_prediction.csv', 'w', newline='') as csvfile:
     fieldnames = ['svm_prediction',
+                  'svm correct?',
                   'log_reg_prediction',
+                  'log_reg_correct?',
                   'nn_prediction',
-                  'actual_quality',
+                  'nn_correct?',
+                  'actual_quality 1: Good, 0: Poor',
                   'fixed acidity',
                   'volatile acidity',
                   'citric acid',
@@ -82,9 +128,12 @@ with open('wine_prediction.csv', 'w', newline='') as csvfile:
     counter = 0
     for prediction in svm_predictions:
         the_writer.writerow({'svm_prediction': prediction,
+                             'svm correct?': svm_correctness[counter],
                              'log_reg_prediction': log_reg_predictions[counter],
+                             'log_reg_correct?': log_reg_correctness[counter],
                              'nn_prediction': nn_predictions[counter],
-                             'actual_quality': y_test.values[counter][0],
+                            'nn_correct?': nn_correctness[counter],
+                             'actual_quality 1: Good, 0: Poor': y_test.values[counter][0],
                              'fixed acidity': X_test[counter][0],
                              'volatile acidity': X_test[counter][1],
                              'citric acid': X_test[counter][2],
